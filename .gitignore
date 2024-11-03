@@ -6,3 +6,9 @@ generated/
 _deps/
 migic*
 pico_flash_region.ld
+pico_blinky*
+pioasm/
+pioasm-install/
+pico-sdk/
+bb/
+.DS_Store
