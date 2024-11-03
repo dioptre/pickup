@@ -25,14 +25,12 @@ uint16_t buffer[CAPTURE_DEPTH] = {0};
 //fix16_t buffer[CAPTURE_DEPTH] = {0};
 
 
-#ifndef NDEBUG
 int32_t log0[LOG_DEPTH] = {0};
 int32_t log1[LOG_DEPTH] = {0};
 int32_t *read_logger = log0;
 uint32_t log_index = 0;
 static bool log_ping = true;
 void core1_main();
-#endif
 
 
 //--------------------------------------------------------------------+
@@ -69,9 +67,12 @@ int main()
     board_init();
     tusb_init();
 
-#ifndef NDEBUG
+    // while (!tud_cdc_connected()) {
+    //     sleep_ms(10);  // Wait until USB CDC is connected
+    // }
+
+
     int32_t *write_logger = log1;
-#endif
 
     /*
      * GPIO Setup
@@ -125,9 +126,8 @@ int main()
 
     adc_run(true);
 
-#ifndef NDEBUG
+
     multicore_launch_core1(core1_main);
-#endif
 
     for (;;)
     {
@@ -212,7 +212,6 @@ int main()
     return 0;
 }
 
-#ifndef NDEBUG
 
 /* Core 1 currently only used for dumping data in the
  * debug build */
@@ -221,6 +220,8 @@ void core1_main()
     static int32_t *last_read_logger = log1;
     while(true)
     {
+        printf("test\n");
+        sleep_ms(1000);
         if (last_read_logger != read_logger)
         {
             last_read_logger = read_logger;
@@ -231,4 +232,3 @@ void core1_main()
         }
     }
 }
-#endif

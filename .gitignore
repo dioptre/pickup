@@ -12,3 +12,4 @@ pioasm-install/
 pico-sdk/
 bb/
 .DS_Store
+pico_usb_elf.map

@@ -19,9 +19,14 @@ include_directories(
 )
 
 FILE(GLOB LIBMIGIC_SOURCE ../../src/*.c)
+# TUD_DEBUG=2
+# TINYUSB_DEBUG=1
+# TUP_ASSERT=1
+
 add_definitions(
     -DMIGIC_NO_64_BIT
     -DFIXMATH_NO_OVERFLOW
+ #   -DNDEBUG
     )
 # rest of your project
 add_executable(migic

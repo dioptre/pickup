@@ -15,4 +15,7 @@ cd ..
 #cmake .
 cmake . -DCMAKE_CXX_FLAGS_RELEASE="-O3 -DNDEBUG"
 make
+#debug
+#screen /dev/tty.usbmodemXXXX 115200
+# ioreg -p IOUSB -l
 ```
