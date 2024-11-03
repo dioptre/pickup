@@ -1,13 +1,16 @@
+
 cmake_minimum_required(VERSION 3.13)
 
+set(PICO_SDK_PATH "${CMAKE_CURRENT_LIST_DIR}/pico-sdk")
 # initialize pico-sdk from submodule
 # note: this must happen before project()
-include(../../contrib/pico-sdk/pico_sdk_init.cmake)
+include(${PICO_SDK_PATH}/external/pico_sdk_import.cmake)
+# initialize the Raspberry Pi Pico SDK
+pico_sdk_init()
 
 project(migic)
 
-# initialize the Raspberry Pi Pico SDK
-pico_sdk_init()
+
 
 include_directories(
     src/
@@ -28,8 +31,10 @@ add_executable(migic
     src/main.c
 )
 # Add pico_stdlib library which aggregates commonly used features
-target_link_libraries(migic pico_stdlib pico_multicore hardware_adc hardware_dma tinyusb_device tinyusb_board)
+target_link_libraries(migic pico_stdlib pico_multicore hardware_adc hardware_dma tinyusb_device tinyusb_board tinyusb_host)
 
+pico_enable_stdio_usb(migic 1)
+pico_enable_stdio_uart(migic 0)
 
 # create map/bin/hex/uf2 file in addition to ELF.
 pico_add_extra_outputs(migic)

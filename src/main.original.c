@@ -1,11 +1,14 @@
 #include <stdio.h>
 #include <math.h>
+#include "libmigic.h"
 #include "pico/stdlib.h"
 #include "pico/multicore.h"
 #include "hardware/adc.h"
 #include "hardware/dma.h"
+#include "fix16.h"
 #include "bsp/board.h"
 #include "tusb.h"
+
 
 #define CAPTURE_CHANNEL 0
 #define CAPTURE_DEPTH 32
@@ -21,8 +24,7 @@ static bool ping = true;
 uint16_t cap0[CAPTURE_DEPTH] = {0};
 uint16_t cap1[CAPTURE_DEPTH] = {0};
 // Processing buffer
-uint16_t buffer[CAPTURE_DEPTH] = {0};
-//fix16_t buffer[CAPTURE_DEPTH] = {0};
+fix16_t buffer[CAPTURE_DEPTH] = {0};
 
 
 #ifndef NDEBUG
@@ -61,7 +63,7 @@ void tud_resume_cb(void)
 int main()
 {
     int midiBufferSize = 10;
-    //midi_message_t midiMsgs[midiBufferSize];
+    midi_message_t midiMsgs[midiBufferSize];
     int numberOfMessages;
     uint16_t *dma_buffer = cap1;
 
@@ -72,6 +74,8 @@ int main()
 #ifndef NDEBUG
     int32_t *write_logger = log1;
 #endif
+
+    libmigic_init(fs);
 
     /*
      * GPIO Setup
@@ -173,20 +177,20 @@ int main()
         }
 #ifdef NDEBUG
         /* Call libmigic withe the processing buffer */
-        //libmigic_track(buffer, CAPTURE_DEPTH, &midiMsgs[0], midiBufferSize, &numberOfMessages, F16(0.1), F16(0.11), false, false, false);
+        libmigic_track(buffer, CAPTURE_DEPTH, &midiMsgs[0], midiBufferSize, &numberOfMessages, F16(0.1), F16(0.11), false, false, false);
         for (size_t i = 0; i < numberOfMessages; i++)
         {
-            //tudi_midi_write24(0, midiMsgs[i].bytes[0], midiMsgs[i].bytes[1], midiMsgs[i].bytes[2]);
-            // if (midiMsgs[i].bytes[0] == 0x90)
-            // {
-            //     gpio_put(LED_PIN, 1);
-            //     gpio_put(BENCHMARK_PIN, 1);
-            // }
-            // else if (midiMsgs[i].bytes[0] == 0x80)
-            // {
-            //     gpio_put(LED_PIN, 0);
-            //     gpio_put(BENCHMARK_PIN, 0);
-            // }
+            tudi_midi_write24(0, midiMsgs[i].bytes[0], midiMsgs[i].bytes[1], midiMsgs[i].bytes[2]);
+            if (midiMsgs[i].bytes[0] == 0x90)
+            {
+                gpio_put(LED_PIN, 1);
+                gpio_put(BENCHMARK_PIN, 1);
+            }
+            else if (midiMsgs[i].bytes[0] == 0x80)
+            {
+                gpio_put(LED_PIN, 0);
+                gpio_put(BENCHMARK_PIN, 0);
+            }
         }
 #endif
 
