@@ -26,7 +26,7 @@ FILE(GLOB LIBMIGIC_SOURCE ../../src/*.c)
 add_definitions(
     -DMIGIC_NO_64_BIT
     -DFIXMATH_NO_OVERFLOW
-    -DNDEBUG
+#    -DNDEBUG
     )
 # rest of your project
 add_executable(migic

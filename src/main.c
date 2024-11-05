@@ -72,16 +72,13 @@ uint8_t buffer_to_midi_note(int32_t value)
 
 int main()
 {
-    int midiBufferSize = 10;
-    // midi_message_t midiMsgs[midiBufferSize];
-    int numberOfMessages;
     uint16_t *dma_buffer = cap1;
+    int32_t *write_logger = log1;
 
     stdio_init_all();
     board_init();
     tusb_init();
 
-    int32_t *write_logger = log1;
 
     /*
      * GPIO Setup
@@ -217,21 +214,21 @@ int main()
  * debug build */
 void core1_main()
 {
-    static int32_t *last_read_logger = log1;
+    //static int32_t *last_read_logger = log1;
     while (true)
     {
         if (tud_cdc_connected())
         {
-            if (last_read_logger != read_logger)
-            {
-                last_read_logger = read_logger;
-                for (size_t i = 0; i < LOG_DEPTH; i++)
-                {
-                    char buffer[32];
-                    snprintf(buffer, sizeof(buffer), "%d\n", read_logger[i]);
-                    tud_cdc_write_str(buffer);
-                }
-            }
+            // if (last_read_logger != read_logger)
+            // {
+            //     last_read_logger = read_logger;
+            //     for (size_t i = 0; i < LOG_DEPTH; i++)
+            //     {
+            //         char buffer[32];
+            //         snprintf(buffer, sizeof(buffer), "%d\n", read_logger[i]);
+            //         tud_cdc_write_str(buffer);
+            //     }
+            // }
             tud_cdc_write_str("\n");
             tud_cdc_write_flush();
         }
