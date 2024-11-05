@@ -1,8 +1,11 @@
 # Guitar pickup with pico
 
-## Turn anything ino an instrument
+## Turn anything into an instrument
 
 I needed this for an instrument for an art project. I used a guitar pickup to interact with moving metal on magnets.
+
+![RPi Pico Amp Schematics](https://github.com/user-attachments/assets/443ece3e-96ee-4f5c-9202-811b5c025777)
+https://github.com/michelemaroni/pico_guitar_to_midi/commit/cbf83c39cf9979ff5f4594b2199a0cb3d392c99f
 
 
 ```sh
