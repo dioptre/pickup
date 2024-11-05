@@ -1,3 +1,9 @@
+# Guitar pickup with pico
+
+## Turn anything ino an instrument
+
+I needed this for an instrument for an art project. I used a guitar pickup to interact with moving metal on magnets.
+
 
 ```sh
 git submodule init
@@ -19,3 +25,7 @@ make
 #screen /dev/tty.usbmodemXXXX 115200
 # ioreg -p IOUSB -l
 ```
+
+## Credits
+
+Thanks to https://github.com/ripxorip/pico_guitar_to_midi for getting this started
