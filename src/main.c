@@ -217,37 +217,26 @@ int main()
  * debug build */
 void core1_main()
 {
+    static int32_t *last_read_logger = log1;
     while (true)
     {
         if (tud_cdc_connected())
         {
-            tud_cdc_write_str("test\n");
+            if (last_read_logger != read_logger)
+            {
+                last_read_logger = read_logger;
+                for (size_t i = 0; i < LOG_DEPTH; i++)
+                {
+                    char buffer[32];
+                    snprintf(buffer, sizeof(buffer), "%d\n", read_logger[i]);
+                    tud_cdc_write_str(buffer);
+                }
+            }
+            tud_cdc_write_str("\n");
             tud_cdc_write_flush();
         }
         tud_task();
         sleep_ms(100); // Wait until USB CDC is connected
     }
-    // static int32_t *last_read_logger = log1;
-    // while (true)
-    // {
-    //     if (tud_cdc_connected())
-    //     {
-    //         tud_cdc_write_str("test\n");
-    //         tud_cdc_write_flush();
-    //         sleep_ms(100);
-
-    //         // if (last_read_logger != read_logger)
-    //         // {
-    //         //     last_read_logger = read_logger;
-    //         //     for (size_t i = 0; i < LOG_DEPTH; i++)
-    //         //     {
-    //         //         char buffer[32];
-    //         //         snprintf(buffer, sizeof(buffer), "%d\n", read_logger[i]);
-    //         //         tud_cdc_write_str(buffer);
-    //         //         tud_cdc_write_flush();
-    //         //     }
-    //         // }
-    //     }
-    //     tud_task(); // Handle TinyUSB background tasks
-    // }
+   
 }
