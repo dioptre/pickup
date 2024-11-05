@@ -10,6 +10,10 @@
 #define CAPTURE_CHANNEL 0
 #define CAPTURE_DEPTH 32
 #define LOG_DEPTH 2048
+#define BUFFER_MIN 0    // Set to the lowest expected buffer value
+#define BUFFER_MAX 4095 // Set to the highest expected buffer value
+#define MIDI_MIN 0      // Lowest MIDI note number
+#define MIDI_MAX 127    // Highest MIDI note number
 
 const uint32_t LED_PIN = 25;
 const uint32_t fs = 10000;
@@ -21,7 +25,8 @@ uint16_t cap0[CAPTURE_DEPTH] = {0};
 uint16_t cap1[CAPTURE_DEPTH] = {0};
 // Processing buffer
 uint16_t buffer[CAPTURE_DEPTH] = {0};
-// fix16_t buffer[CAPTURE_DEPTH] = {0};
+uint16_t last_buffer[CAPTURE_DEPTH] = {0};
+uint8_t last_note = 0;
 
 int32_t log0[LOG_DEPTH] = {0};
 int32_t log1[LOG_DEPTH] = {0};
@@ -50,6 +55,19 @@ void tud_suspend_cb(bool remote_wakeup_en)
 
 void tud_resume_cb(void)
 {
+}
+
+// Scaling function to map buffer values to MIDI note numbers
+uint8_t buffer_to_midi_note(int32_t value)
+{
+    // Constrain value to BUFFER_MIN and BUFFER_MAX
+    if (value < BUFFER_MIN)
+        value = BUFFER_MIN;
+    if (value > BUFFER_MAX)
+        value = BUFFER_MAX;
+
+    // Map the value from BUFFER_MIN–BUFFER_MAX to MIDI_MIN–MIDI_MAX
+    return (uint8_t)(((value - BUFFER_MIN) * (MIDI_MAX - MIDI_MIN)) / (BUFFER_MAX - BUFFER_MIN)) + MIDI_MIN;
 }
 
 int main()
@@ -121,84 +139,77 @@ int main()
 
     for (;;)
     {
-        /* Measure the idle time */
-#ifdef NDEBUG
-        tud_task(); // tinyusb device task (Might be moved to the other core)
-#endif
         dma_channel_wait_for_finish_blocking(dma_chan);
+
         if (ping)
         {
-            dma_channel_configure(
-                dma_chan,
-                &cfg,
-                cap1,          // dst
-                &adc_hw->fifo, // src
-                CAPTURE_DEPTH, // transfer count
-                true           // start immediately
-            );
+            dma_channel_configure(dma_chan, &cfg, cap1, &adc_hw->fifo, CAPTURE_DEPTH, true);
             dma_buffer = cap0;
         }
         else
         {
-            dma_channel_configure(
-                dma_chan,
-                &cfg,
-                cap0,          // dst
-                &adc_hw->fifo, // src
-                CAPTURE_DEPTH, // transfer count
-                true           // start immediately
-            );
+            dma_channel_configure(dma_chan, &cfg, cap0, &adc_hw->fifo, CAPTURE_DEPTH, true);
             dma_buffer = cap1;
         }
         ping = !ping;
 
+        uint8_t const cable_num = 0; // MIDI jack associated with USB endpoint
+        uint8_t const channel = 0;   // MIDI channel 1
+
+        // Process the buffer data
         for (size_t i = 0; i < CAPTURE_DEPTH; i++)
         {
-            /* Convert the data to Q16 */
-            buffer[i] = ((int32_t)(dma_buffer[i]) - (2048 - 60)) << 5; // 60 for resistor variance..
-
-#ifndef NDEBUG
+            last_buffer[i] = buffer[i];
+            buffer[i] = ((int32_t)(dma_buffer[i]) - (2048 - 60)) << 5; // Adjust for resistor variance
             write_logger[log_index + i] = buffer[i];
-#endif
         }
-#ifdef NDEBUG
-        /* Call libmigic withe the processing buffer */
-        // libmigic_track(buffer, CAPTURE_DEPTH, &midiMsgs[0], midiBufferSize, &numberOfMessages, F16(0.1), F16(0.11), false, false, false);
-        for (size_t i = 0; i < numberOfMessages; i++)
-        {
-            // tudi_midi_write24(0, midiMsgs[i].bytes[0], midiMsgs[i].bytes[1], midiMsgs[i].bytes[2]);
-            //  if (midiMsgs[i].bytes[0] == 0x90)
-            //  {
-            //      gpio_put(LED_PIN, 1);
-            //      gpio_put(BENCHMARK_PIN, 1);
-            //  }
-            //  else if (midiMsgs[i].bytes[0] == 0x80)
-            //  {
-            //      gpio_put(LED_PIN, 0);
-            //      gpio_put(BENCHMARK_PIN, 0);
-            //  }
-        }
-#endif
 
-#ifndef NDEBUG
-        log_index += CAPTURE_DEPTH;
-        if (log_index == LOG_DEPTH)
+        // Calculate the average and map to a MIDI note
+        int sum = 0;
+        for (int i = 0; i < CAPTURE_DEPTH; i++)
+            sum += buffer[i];
+
+        uint8_t midi_note = buffer_to_midi_note((int32_t)(sum / CAPTURE_DEPTH));
+
+        // Handle MIDI note on/off messages
+        if (midi_note != last_note)
         {
-            if (log_ping)
+            // Send Note Off for the previous note if it's different
+            if (last_note != 0)
             {
-                write_logger = log0;
-                read_logger = log1;
+                uint8_t note_off[3] = {0x80 | channel, last_note, 0};
+                tud_midi_stream_write(cable_num, note_off, 3);
             }
-            else
-            {
-                write_logger = log1;
-                read_logger = log0;
-            }
-            log_ping = !log_ping;
-            log_index = 0;
+
+            // Send Note On for the new note
+            uint8_t note_on[3] = {0x90 | channel, midi_note, 127};
+            tud_midi_stream_write(cable_num, note_on, 3);
+
+            last_note = midi_note; // Update last note
         }
-#endif
+
+        // GPIO feedback
+        if (midi_note == last_note)
+        {
+            gpio_put(LED_PIN, 1);
+            gpio_put(BENCHMARK_PIN, 1);
+        }
+        else
+        {
+            gpio_put(LED_PIN, 0);
+            gpio_put(BENCHMARK_PIN, 0);
+        }
+
+        // Update logging index
+        log_index += CAPTURE_DEPTH;
+        if (log_index >= LOG_DEPTH)
+        {
+            log_index = 0; // Reset log index if exceeding LOG_DEPTH
+            log_ping = !log_ping;
+            write_logger = log_ping ? log0 : log1;
+        }
     }
+
     return 0;
 }
 
