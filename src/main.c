@@ -16,6 +16,7 @@
 #define MIDI_MAX 127    // Highest MIDI note number
 
 const uint32_t LED_PIN = 25;
+const uint32_t ADC_GPIO_START_PIN = 26;
 const uint32_t fs = 10000;
 const uint32_t BENCHMARK_PIN = 2;
 static bool ping = true;
@@ -57,6 +58,39 @@ void tud_resume_cb(void)
 {
 }
 
+// Rolling average
+#define RA_WINDOW_SIZE 128 // Define the size of the rolling average window
+// Circular buffer for holding the last N samples
+int32_t ra_buffer[RA_WINDOW_SIZE] = {0}; // Initialize to zero
+int32_t ra_sum = 0;                      // Running sum of the window
+size_t ra_index = 0;                     // Current index in the circular buffer
+size_t ra_count = 0;                     // Count of samples added (used for warm-up)
+
+// Function to add a new value and calculate the rolling average
+int32_t rolling_average(int32_t new_value)
+{
+    // If buffer is full, subtract the oldest value from the sum
+    if (ra_count >= RA_WINDOW_SIZE)
+    {
+        ra_sum -= ra_buffer[ra_index];
+    }
+    else
+    {
+        // Increase the sample count until we reach the window size
+        ra_count++;
+    }
+
+    // Add the new value to the buffer and to the sum
+    ra_buffer[ra_index] = new_value;
+    ra_sum += new_value;
+
+    // Advance the index, wrapping around using modulo operation
+    ra_index = (ra_index + 1) % RA_WINDOW_SIZE;
+
+    // Calculate and return the average
+    return (int32_t)ra_sum / ra_count;
+}
+
 // Scaling function to map buffer values to MIDI note numbers
 uint8_t buffer_to_midi_note(int32_t value)
 {
@@ -79,7 +113,6 @@ int main()
     board_init();
     tusb_init();
 
-
     /*
      * GPIO Setup
      */
@@ -92,8 +125,8 @@ int main()
     /*
      * ADC Setup
      */
-    adc_gpio_init(26 + CAPTURE_CHANNEL);
-    adc_gpio_init(26 + 1);
+    adc_gpio_init(ADC_GPIO_START_PIN + CAPTURE_CHANNEL);
+    adc_gpio_init(ADC_GPIO_START_PIN + 1);
     adc_init();
 
     adc_select_input(CAPTURE_CHANNEL);
@@ -134,6 +167,9 @@ int main()
 
     multicore_launch_core1(core1_main);
 
+    uint8_t packet[4];
+    while ( tud_midi_available() ) tud_midi_packet_read(packet);
+
     for (;;)
     {
         dma_channel_wait_for_finish_blocking(dma_chan);
@@ -153,20 +189,21 @@ int main()
         uint8_t const cable_num = 0; // MIDI jack associated with USB endpoint
         uint8_t const channel = 0;   // MIDI channel 1
 
-        // Process the buffer data
+        // Process and smooth the buffer data
+        int64_t smoothed_sum = 0;
         for (size_t i = 0; i < CAPTURE_DEPTH; i++)
         {
             last_buffer[i] = buffer[i];
-            buffer[i] = ((int32_t)(dma_buffer[i]) - (2048 - 60)) << 5; // Adjust for resistor variance
-            write_logger[log_index + i] = buffer[i];
+
+            // Convert raw ADC value and apply rolling average
+            int32_t adjusted_value = ((int32_t)(dma_buffer[i]) - (2048 - 60)) << 5;
+            buffer[i] = rolling_average(adjusted_value); // Smooth each ADC value
+
+            smoothed_sum += buffer[i];               // Accumulate smoothed values
+            write_logger[log_index + i] = buffer[i]; // Log data
         }
 
-        // Calculate the average and map to a MIDI note
-        int sum = 0;
-        for (int i = 0; i < CAPTURE_DEPTH; i++)
-            sum += buffer[i];
-
-        uint8_t midi_note = buffer_to_midi_note((int32_t)(sum / CAPTURE_DEPTH));
+        uint8_t midi_note = buffer_to_midi_note(smoothed_sum / CAPTURE_DEPTH);
 
         // Handle MIDI note on/off messages
         if (midi_note != last_note)
@@ -198,13 +235,7 @@ int main()
         }
 
         // Update logging index
-        log_index += CAPTURE_DEPTH;
-        if (log_index >= LOG_DEPTH)
-        {
-            log_index = 0; // Reset log index if exceeding LOG_DEPTH
-            log_ping = !log_ping;
-            write_logger = log_ping ? log0 : log1;
-        }
+        memcpy(&write_logger[log_index], buffer, CAPTURE_DEPTH * sizeof(buffer[0]));
     }
 
     return 0;
@@ -214,7 +245,7 @@ int main()
  * debug build */
 void core1_main()
 {
-    //static int32_t *last_read_logger = log1;
+    // static int32_t *last_read_logger = log1;
     while (true)
     {
         if (tud_cdc_connected())
@@ -233,7 +264,6 @@ void core1_main()
             tud_cdc_write_flush();
         }
         tud_task();
-        sleep_ms(100); // Wait until USB CDC is connected
+        sleep_ms(300); // Wait until USB CDC is connected
     }
-   
 }
