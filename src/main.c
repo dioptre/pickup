@@ -28,6 +28,7 @@ uint16_t cap1[CAPTURE_DEPTH] = {0};
 uint16_t buffer[CAPTURE_DEPTH] = {0};
 uint16_t last_buffer[CAPTURE_DEPTH] = {0};
 uint8_t last_note = 0;
+uint8_t last_amplitude = 127;
 
 int32_t log0[LOG_DEPTH] = {0};
 int32_t log1[LOG_DEPTH] = {0};
@@ -220,7 +221,16 @@ int main()
             tud_midi_stream_write(cable_num, note_on, 3);
 
             last_note = midi_note; // Update last note
+        } else {
+            last_amplitude--;
+            if (last_amplitude == 0) {
+                last_amplitude = 127;
+                uint8_t note_off[3] = {0x80 | channel, last_note, 0};
+                tud_midi_stream_write(cable_num, note_off, 3);
+                last_note = 0;
+            }
         }
+        tud_task();
 
         // GPIO feedback
         if (midi_note == last_note)
